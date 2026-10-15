@@ -7,6 +7,9 @@ const routes=new Map([
  ["/before.css", "before.css"],
  ["/stages.css", "stages.css"],
  ["/before.js", "before.js"],
+ ["/during.js", "during.js"],
+ ["/during.css", "during.css"],
+ ["/during-engine.mjs", "during-engine.mjs"],
  ["/data.mjs", "data.mjs"],
  ["/planning.mjs", "planning.mjs"],
  ["/solar.mjs", "solar.mjs"],
@@ -18,6 +21,8 @@ const routes=new Map([
  ["/before-the-shoot/", "before-the-shoot/index.html"],
  ["/during-the-shoot/index.html", "during-the-shoot/index.html"],
  ["/during-the-shoot/", "during-the-shoot/index.html"],
+ ["/during-the-shoot/calculators/", "during-the-shoot/calculators/index.html"],
+ ["/during-the-shoot/calculators/index.html", "during-the-shoot/calculators/index.html"],
  ["/after-the-shoot/index.html", "after-the-shoot/index.html"],
  ["/after-the-shoot/", "after-the-shoot/index.html"],
  ["/credits/index.html", "credits/index.html"],
@@ -334,7 +339,7 @@ const routes=new Map([
   "resize/index.html"
  ]
 ]);
-const directoryRoutes=new Set(["/before-the-shoot","/during-the-shoot","/after-the-shoot","/credits","/photo-viewer", "/about", "/batch", "/batch-rename", "/batch-resize", "/contact-sheet", "/crop", "/exif", "/export", "/photo-stats", "/print-size", "/privacy", "/remove-metadata", "/resize"]);
+const directoryRoutes=new Set(["/during-the-shoot/calculators","/before-the-shoot","/during-the-shoot","/after-the-shoot","/credits","/photo-viewer", "/about", "/batch", "/batch-rename", "/batch-resize", "/contact-sheet", "/crop", "/exif", "/export", "/photo-stats", "/print-size", "/privacy", "/remove-metadata", "/resize"]);
 const mime={html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',js:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml',png:'image/png',txt:'text/plain; charset=utf-8',xml:'application/xml; charset=utf-8'};
 // The static build uses the same public file allowlist as the Node server.
 export const publicFiles=Object.freeze([...new Set(routes.values())]);

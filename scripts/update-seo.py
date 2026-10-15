@@ -4,8 +4,9 @@ import argparse,html,json,re
 
 ORIGIN='https://phopod.com'
 PAGES=[
+ ('/during-the-shoot/calculators/', 'Exposure, Focus, ND, Timelapse & Flash Calculators | Phopod', 'Calculate equivalent exposure, depth of field, ND exposure, timelapse timing and manual flash settings in your browser.', 'Photography Calculators', 'Calculate equivalent exposure, depth of field, ND exposure, timelapse timing and direct manual flash aperture or distance locally.'),
  ('/before-the-shoot/', 'Photography Shoot Planner: Light, Weather & Routes | Phopod', 'Search locations, calculate golden and blue hours, check forecasts and arrange a photo walk. Save your shoot locally or open walking directions.', 'Before the Shoot', 'Plan a shoot using location search, destination-local sunlight calculations, hourly weather forecasts, nearby places and an editable five-stop walking plan. Save one shoot on your device, download a text itinerary, or open external walking directions.'),
- ('/during-the-shoot/', 'During the Shoot: Field Companion | Phopod', 'The next stage of Phopod will bring photographic tools into the field. Start now with the Before the Shoot planner and existing photo utilities.', 'During the Shoot', None),
+ ('/during-the-shoot/', 'Photography Calculators: Exposure, Focus & Timelapse | Phopod', 'Calculate equivalent exposure, depth of field, ND exposure, timelapse timing and manual flash aperture or distance locally with Phopod.', 'During the Shoot', None),
  ('/after-the-shoot/', 'After the Shoot: Seven Photography Tools | Phopod', 'Inspect EXIF, analyze photo statistics, rename originals, check print sizes, crop and export, make contact sheets and build offline photo viewers.', 'After the Shoot', None),
  ('/credits/', 'Data Sources & Credits | Phopod', 'Read about Phopod location and forecast providers, sunlight calculations, browser-local shoot storage and third-party software licenses.', 'Data Sources & Credits', None),
 

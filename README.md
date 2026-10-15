@@ -43,7 +43,7 @@ Use Node 20 or newer. Run `npm start` to serve locally and `npm test` for checks
 
 Run `npm run build` to recreate `dist/` from the Node server's public file allowlist. It preserves public paths and file bytes, including browser modules, brand assets, decoder/license, robots.txt and sitemap.xml. Server code, package files, tests, scripts, documentation and node_modules are excluded. Generated `dist/` and Wrangler state are ignored by Git.
 
-In Cloudflare Workers Builds, set the build command to `npm run build` and deploy command to `npx wrangler deploy`. `wrangler.jsonc` configures `inspectorfocus-com` with only `./dist` as its assets directory. Folder pages retain trailing-slash URLs and unmatched paths return genuine 404s; there is no SPA fallback or Worker server entrypoint. `npm run deploy` builds and deploys from a local checkout. Keep the existing Node entrypoint for Hostinger/local use. No DNS or domain migration is performed by this configuration change.
+In Cloudflare Workers Builds, set the build command to `npm run build` and deploy command to `npx wrangler deploy`. `wrangler.jsonc` configures `phopod-com` with only `./dist` as its assets directory. Folder pages retain trailing-slash URLs and unmatched paths return genuine 404s; there is no SPA fallback or Worker server entrypoint. `npm run deploy` builds and deploys from a local checkout. Keep the existing Node entrypoint for Hostinger/local use. No DNS or domain migration is performed by this configuration change.
 
 ## Project notes
 
@@ -97,3 +97,9 @@ download names, social artwork and the Meet Phopod comic use the new name. The r
 design is preserved. Meet Phopod remains available in new-page footers on phones.
 Existing domains, repo/Worker identifiers, asset URLs and browser storage keys remain
 compatible; phopod.com is a separately registered destination awaiting domain cutover.
+
+## During the Shoot calculators
+
+The stage opens as a five-tool directory. Calculators at /during-the-shoot/calculators/ cover equivalent exposure, depth of field/hyperfocal distance, ND exposure, timelapse and direct manual flash. The header contains only field tools. Calculations run locally; assumptions are expandable. Flash supports ISO, manual power and independent guide-number/distance units. Its estimate excludes bounce, modifiers and HSS.
+
+Validation: 179 tests passed, 14 canonical-page SEO checks passed, 92 public assets built. Interactive desktop/mobile acceptance testing remains pending.
