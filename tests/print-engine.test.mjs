@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {printSizes,printFit,resolutionGuide,sizeLabel} from '../print-engine.mjs';
+const size=id=>printSizes.find(s=>s.id===id);
+const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
+test('Matching print ratio retains all pixels and reports actual PPI',()=>{const r=printFit(6000,4000,size('20x30'));assert.equal(r.cropRequired,false);close(r.ppi,200);close(r.lost,0);assert.equal(r.printWidth,30);assert.equal(r.printHeight,20);});
+test('PPI is calculated after cropping, not from the original long edge',()=>{const r=printFit(6000,4000,size('8x10'));close(r.cropWidth,5000);close(r.cropHeight,4000);close(r.ppi,500);close(r.lost,1/6);assert.equal(r.axis,'horizontal');});
+test('Portrait auto orientation swaps the print dimensions',()=>{const r=printFit(4000,6000,size('8x10'));close(r.cropWidth,4000);close(r.cropHeight,5000);close(r.ppi,500);assert.equal(r.printWidth,8);assert.equal(r.printHeight,10);assert.equal(r.axis,'vertical');});
+test('Crop position affects framing but not density or retained area',()=>{const a=printFit(6000,4000,size('8x10'),'auto',0),b=printFit(6000,4000,size('8x10'),'auto',1);assert.equal(a.x,0);assert.equal(b.x,1000);close(a.ppi,b.ppi);close(a.lost,b.lost);assert.equal(printFit(6000,4000,size('8x10'),'auto',5).x,1000);});
+test('Forced portrait orientation crops a landscape photograph correctly',()=>{const r=printFit(6000,4000,size('8x10'),'portrait');close(r.cropWidth,3200);close(r.ppi,400);close(r.x,1400);});
+test('Square photograph and zero or invalid dimensions',()=>{const r=printFit(4000,4000,size('4x6'));close(r.cropHeight,4000/1.5);assert.equal(r.axis,'vertical');assert.throws(()=>printFit(0,4000,size('4x6')));assert.throws(()=>printFit(NaN,4000,size('4x6')));});
+test('Resolution boundaries and centimeter conversion',()=>{assert.equal(resolutionGuide(300).label,'High detail');assert.equal(resolutionGuide(299.9).label,'Good detail');assert.equal(resolutionGuide(200).label,'Good detail');assert.equal(resolutionGuide(150).label,'Lower detail');assert.equal(resolutionGuide(149).label,'Low resolution');assert.equal(sizeLabel(size('4x6'),'cm'),'10.16 × 15.24 cm');});

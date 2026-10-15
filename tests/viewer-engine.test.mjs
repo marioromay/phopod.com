@@ -1,0 +1,26 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {offlineHTML,viewerPackage,viewerSettings,mountOfflineTheme} from '../viewer-engine.mjs';import {crc32} from '../zip-engine.mjs';
+const photos=[{name:'z.jpg',width:1920,height:1280,bytes:new Uint8Array([255,216,1,255,217])},{name:'a.jpg',width:800,height:1000,bytes:new Uint8Array([255,216,2,255,217])}];
+function unpack(bytes){const result=new Map(),view=new DataView(bytes.buffer);let offset=0;while(view.getUint32(offset,true)===0x04034b50){const length=view.getUint32(offset+18,true),n=view.getUint16(offset+26,true),extra=view.getUint16(offset+28,true),start=offset+30+n+extra,name=new TextDecoder().decode(bytes.slice(offset+30,offset+30+n)),body=bytes.slice(start,start+length);assert.equal(view.getUint32(offset+14,true),crc32(body));result.set(name,body);offset=start+length;}return result;}
+test('offline ZIP contains neutral paths, local branding and JPEG copies in committed order',async()=>{const zip=viewerPackage(photos,{title:'Street walk',author:'Mario',labels:true,numbers:true},new Uint8Array([137,80,78,71]));const entries=unpack(new Uint8Array(await zip.arrayBuffer()));assert.deepEqual([...entries.keys()],['index.htm','assets/inspector-focus.png','README.txt','images/0001.jpg','images/0002.jpg']);assert.deepEqual(entries.get('images/0001.jpg'),photos[0].bytes);const html=new TextDecoder().decode(entries.get('index.htm'));assert.ok(html.indexOf('z.jpg')<html.indexOf('a.jpg'));assert.match(html,/Photographs by/);assert.match(html,/"author":"Mario"/);assert.ok(!/fetch\(|type="module"|src="https?:/.test(html));new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]);});
+test('disabled filename labels omit originals from HTML data and ZIP entry names',()=>{const html=offlineHTML(photos,{labels:false});assert.ok(!html.includes('z.jpg'));assert.ok(!html.includes('a.jpg'));assert.ok(html.includes('images/0001.jpg'));});
+test('titles, credit and filenames cannot inject markup or terminate the embedded script',()=>{const hostile='</script><img src=x onerror=alert(1)> & "quoted"',html=offlineHTML([{...photos[0],name:hostile}],{title:hostile,author:hostile});assert.equal((html.match(/<\/script>/g)||[]).length,1);assert.ok(!html.includes('<img src=x'));assert.ok(html.includes('\\u003c/script\\u003e'));new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]);});
+test('package settings and limits reject bad output and preserve explicit playback choices',()=>{assert.deepEqual(viewerSettings({interval:10,loop:true,transition:'fade'}),{title:'',author:'',labels:false,numbers:false,interval:10,loop:true,transition:'fade'});assert.equal(viewerSettings({interval:0}).interval,5);assert.throws(()=>viewerPackage([],{},new Uint8Array([1])),/300/);assert.throws(()=>viewerPackage([{bytes:new Uint8Array([1])}],{},new Uint8Array([1])),/JPEG/);class Large extends Uint8Array{get length(){return 201*1024*1024;}}assert.throws(()=>viewerPackage([{bytes:new Large([255,216])}],{},new Uint8Array([1])),/200 MB/);});
+
+test('offline viewer has local logo, website links, and working light/dark mode with blocked storage',async()=>{
+ const {viewerDOM}=await import('./helpers/viewer-dom.mjs'),dom=viewerDOM(),doc=dom.document;doc.documentElement={dataset:{}};globalThis.matchMedia=()=>({matches:true});globalThis.localStorage={getItem(){throw Error('file storage blocked');},setItem(){throw Error('file storage blocked');}};
+ mountOfflineTheme(doc);assert.equal(doc.documentElement.dataset.theme,'dark');dom.$('viewer-theme').onclick();assert.equal(doc.documentElement.dataset.theme,'light');assert.equal(dom.$('viewer-theme').textContent,'Dark mode');dom.$('viewer-theme').onclick();assert.equal(doc.documentElement.dataset.theme,'dark');
+ const html=offlineHTML(photos,{});assert.match(html,/src="assets\/inspector-focus.png" alt="Phopod robot"/);assert.match(html,/href="https:\/\/phopod.com" target="_blank" rel="noopener noreferrer"/);assert.match(html,/id="viewer-theme"/);assert.match(html,/connect-src 'none'/);
+});
+
+test('separate-tab preview renders every image from embedded bytes without creator blob URLs',async()=>{
+ const {offlinePreviewHTML}=await import('../viewer-engine.mjs');const {viewerDOM}=await import('./helpers/viewer-dom.mjs');const {runInNewContext}=await import('node:vm');
+ const originals=globalThis.URL;const dom=viewerDOM();try{
+ dom.document.documentElement={dataset:{}};
+ const bytes=[new Uint8Array([255,216,5,255,217]),new Uint8Array([255,216,9,255,217])];
+ const html=offlinePreviewHTML(bytes.map((bytes,i)=>({bytes,name:'photo-'+i+'.jpg',url:'blob:unavailable-'+i})),{labels:false},new Uint8Array([137,80,78,71]));
+ assert.ok(!html.includes('blob:unavailable'));assert.ok(!html.includes('images/0001.jpg'));assert.match(html,/img-src 'self' file: data:/);
+ runInNewContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],{document:dom.document,setTimeout,clearTimeout,localStorage:{getItem(){throw Error('Blocked');}},matchMedia:()=>({matches:false})});
+ const image=dom.$('viewer').querySelectorAll('.book-page')[1];const decode=()=>new Uint8Array(Buffer.from(image.src.split(',')[1],'base64'));
+ assert.deepEqual(decode(),bytes[0]);dom.$('viewer').querySelectorAll('button')[2].onclick();assert.deepEqual(decode(),bytes[1]);
+ }finally{globalThis.URL=originals;}
+});

@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.wrangler/
+.dev.vars*
+.openai/
+.DS_Store
+*.tar.gz

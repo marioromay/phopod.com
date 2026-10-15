@@ -1,0 +1,31 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mountPhotoBook} from '../viewer-runtime.mjs';import {offlineHTML,viewerSettings} from '../viewer-engine.mjs';import {viewerDOM} from './helpers/viewer-dom.mjs';
+const photos=[{url:'images/0001.jpg',name:'first.jpg'},{url:'images/0002.jpg',name:'second.jpg'},{url:'images/0003.jpg',name:'last.jpg'}];
+function setup(options={}){const dom=viewerDOM(),root=dom.$('viewer');const dispose=mountPhotoBook(root,photos,{title:'Walk',author:'Mario',labels:true,numbers:true,interval:10,transition:'turn',...options});const buttons=root.querySelectorAll('button'),stage=root.querySelectorAll('.book-stage')[0],image=root.querySelectorAll('.book-page')[1],counter=root.querySelectorAll('.book-counter')[0];return {...dom,root,dispose,buttons,stage,image,counter};}
+test('book starts on first full photograph, turns manually and by swipe, honors boundaries and keyboard fields',()=>{
+ const x=setup(),[prev,play,next]=x.buttons;assert.equal(x.root.querySelectorAll('dialog').length,0);assert.equal(x.root.querySelectorAll('.viewer-gallery').length,0);assert.equal(x.image.src,photos[0].url);assert.equal(x.counter.textContent,'01 / 03');assert.ok(prev.disabled);assert.equal(play.textContent,'Play');
+ next.onclick();assert.equal(x.image.src,photos[1].url);assert.equal(x.counter.textContent,'02 / 03');prev.onclick();assert.equal(x.image.src,photos[0].url);
+ x.stage.onpointerdown({pointerType:'touch',clientX:200,clientY:50});x.stage.onpointerup({clientX:100,clientY:55});assert.equal(x.image.src,photos[1].url);
+ x.stage.onpointerdown({pointerType:'touch',clientX:200,clientY:50});x.stage.onpointerup({clientX:195,clientY:150});assert.equal(x.image.src,photos[1].url);
+ const key=[...x.events.get('keydown')][0];key({key:'ArrowRight',target:{tagName:'SELECT'},preventDefault(){}});assert.equal(x.image.src,photos[1].url);key({key:'ArrowRight',target:{tagName:'DIV'},preventDefault(){}});assert.equal(x.image.src,photos[2].url);assert.ok(next.disabled);assert.equal(x.counter.textContent,'03 / 03');x.dispose();assert.equal(x.events.get('keydown').size,0);
+});
+test('autoplay waits for image load, advances at chosen interval, stops at end and cleans timers',()=>{
+ const originalSet=globalThis.setTimeout,originalClear=globalThis.clearTimeout,timers=new Map();let serial=0;globalThis.setTimeout=(fn,delay)=>{const id=++serial;timers.set(id,{fn,delay});return id;};globalThis.clearTimeout=id=>timers.delete(id);
+ try{const x=setup(),play=x.buttons[1];play.onclick();assert.equal([...timers.values()].filter(t=>t.delay===10000).length,0);x.image.onload();assert.equal([...timers.values()].filter(t=>t.delay===10000).length,1);
+ const tick=()=>{const [id,t]=[...timers].find(([,t])=>t.delay===10000);timers.delete(id);t.fn();};tick();assert.equal(x.image.src,photos[1].url);assert.equal([...timers.values()].filter(t=>t.delay===10000).length,0);x.image.onload();tick();assert.equal(x.image.src,photos[2].url);x.image.onload();tick();assert.equal(play.textContent,'Play');assert.equal(timers.size,0);
+ const loop=x.root.querySelectorAll('input')[0];loop.checked=true;loop.onchange();play.onclick();x.image.onload();tick();assert.equal(x.image.src,photos[0].url);x.image.onload();x.document.hidden=true;[...x.events.get('visibilitychange')][0]();assert.equal(play.textContent,'Play');assert.equal(timers.size,0);x.document.hidden=false;play.onclick();x.image.onload();assert.equal([...timers.values()].filter(t=>t.delay===10000).length,1);x.dispose();assert.equal(timers.size,0);
+ }finally{globalThis.setTimeout=originalSet;globalThis.clearTimeout=originalClear;}
+});
+test('page turn animates in both directions, reduced motion suppresses it and broken images stop playback',()=>{
+ const x=setup({labels:false,numbers:false}),ghost=x.root.querySelectorAll('.book-page')[0],animations=[];globalThis.matchMedia=()=>({matches:false});for(const node of [x.image,ghost])node.animate=(frames,options)=>{const a={frames,options,cancel(){this.cancelled=true;}};animations.push(a);return a;};
+ x.image.onload();x.buttons[2].onclick();x.image.onload();assert.equal(animations.length,2);assert.equal(animations[1].options.duration,480);assert.match(animations[1].frames[0].transform,/translateX\(8%\)/);animations[1].onfinish();assert.equal(ghost.hidden,true);
+ x.buttons[0].onclick();assert.ok(animations[0].cancelled);x.image.onload();assert.match(animations[3].frames[0].transform,/translateX\(-8%\)/);globalThis.matchMedia=()=>({matches:true});x.buttons[2].onclick();x.image.onload();assert.equal(animations.length,4);assert.equal(x.root.querySelectorAll('.book-caption')[0].hidden,true);assert.equal(x.image.alt,'Photograph 2');x.buttons[1].onclick();x.image.onerror();assert.equal(x.buttons[1].textContent,'Play');assert.match(x.root.querySelectorAll('.book-status')[0].textContent,/could not be opened/);x.dispose();
+});
+test('offline HTML packages only photo book runtime, transparent theme-aware logo and page-turn default',()=>{
+ const html=offlineHTML(photos,{});assert.ok(!html.includes('viewer-gallery'));assert.ok(!html.includes('showModal'));assert.ok(!html.includes('background:white'));assert.match(html,/data-theme=dark\] .offline-brand img\{filter:invert\(1\)/);assert.equal(viewerSettings().transition,'turn');new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
+});
+
+test('playback controls fade while playing and return on interaction or pause',()=>{
+ const originalSet=globalThis.setTimeout,originalClear=globalThis.clearTimeout,timers=new Map();let serial=0;globalThis.setTimeout=(fn,delay)=>{timers.set(++serial,{fn,delay});return serial;};globalThis.clearTimeout=id=>timers.delete(id);
+ try{const x=setup(),book=x.root.querySelectorAll('.photo-book')[0],play=x.buttons[1];play.onclick();assert.equal(play.attributes['aria-label'],'Pause slideshow');assert.match(play.innerHTML,/<rect/);const [id,idle]=[...timers].find(([,v])=>v.delay===2500);timers.delete(id);idle.fn();assert.equal(book.dataset.controls,'hidden');book.onpointermove();assert.equal(book.dataset.controls,'visible');play.onclick();assert.equal(book.dataset.controls,'visible');assert.equal(play.attributes['aria-label'],'Play slideshow');x.dispose();assert.equal(timers.size,0);
+ }finally{globalThis.setTimeout=originalSet;globalThis.clearTimeout=originalClear;}
+});
