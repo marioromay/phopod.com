@@ -1,8 +1,9 @@
-import {coordinates,localDay,validDay,dayDiff,shootingWindow,forecastAt,weatherName,localParts,localInstant,localTime,solarAt,distance,routeMetrics,directions,validSaved} from './planning.mjs?v=phopod-20261015';
-import {searchLocations,forecast,nearby} from './data.mjs?v=phopod-20261015';
+import {coordinates,localDay,validDay,dayDiff,shootingWindow,forecastAt,weatherName,localParts,localInstant,localTime,solarAt,distance,routeMetrics,directions,validSaved} from './planning.mjs?v=before-release-20261016';
+import {searchLocations,forecast,approximateArea,readableDeviceLocation} from './data.mjs?v=before-release-20261016';
 const $=s=>document.querySelector(s);
 const key='inspector-focus:shoot:v1';
-const state={location:null,type:'Street',day:'Today',time:'Best Light',date:null,stops:[],forecast:null,window:null,nearby:[],minute:720};
+const state={location:null,type:'Explore',day:'Today',time:'Best Light',date:null,stops:[],forecast:null,window:null,nearby:[],minute:720};
+let searchBias=null;const areaReady=approximateArea().then(area=>{if(!searchBias)searchBias=area;});
 let searchController,addController,buildController,nearbyController,epoch=0,searchEpoch=0,addEpoch=0,geoEpoch=0,weatherEpoch=0,nearbyEpoch=0;
 const dateInput=$('#shoot-date');
 let saved;try{saved=validSaved(JSON.parse(localStorage.getItem(key)||'null'))}catch{}
@@ -11,25 +12,29 @@ const safeText=(node,text)=>{node.textContent=text};
 function el(tag,text,cls){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node}
 function reveal(node){node.hidden=false;node.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'})}
 function focusHeading(node){node.focus({preventScroll:true})}
-function cancelBuild(){
- epoch++;weatherEpoch++;nearbyEpoch++;addEpoch++;addController?.abort();buildController?.abort();nearbyController?.abort();$('#build').disabled=false;$('#build').innerHTML='BUILD MY SHOOT <span>↗</span>';$('#nearby').disabled=false;$('#results').hidden=true;$('#build-status').textContent='';
+function cancelBuild({nearby:cancelNearby=true}={}){
+ epoch++;weatherEpoch++;if(cancelNearby){nearbyEpoch++;nearbyController?.abort();}addEpoch++;addController?.abort();buildController?.abort();$('#build-status').textContent='';
 }
 function adjustDate(){
  if(!state.location)return;
  dateInput.min=localDay(state.location.timezone);
  if(!dateInput.value||dateInput.value<dateInput.min)dateInput.value=dateInput.min;
  state.date=state.day==='Choose Date'?dateInput.value:localDay(state.location.timezone,state.day==='Tomorrow'?1:0);
+ const now=new Date(),date=localInstant(state.date,720,state.location.timezone);
+ const formatted=new Intl.DateTimeFormat('en-US',{timeZone:state.location.timezone,weekday:'long',month:'long',day:'numeric',year:'numeric'}).format(date);
+ $('#selected-date').textContent=formatted+(state.day==='Today'?' · '+localTime(now,state.location.timezone)+' now':'')+' · '+state.location.timezone;
+
 }
 function selectLocation(location,{restore=false}={}){
- searchEpoch++;geoEpoch++;searchController?.abort();$('#search-form button').disabled=false;$('#locate').disabled=false;cancelBuild();state.location=location;state.forecast=null;state.nearby=[];if(!restore)state.stops=[location];
+ searchEpoch++;geoEpoch++;searchController?.abort();$('#search-form button').disabled=false;$('#locate').disabled=false;cancelBuild();state.location=location;searchBias=location;state.forecast=null;state.nearby=[];if(!restore){state.stops=[location];state.day='Today';state.time='Best Light';document.querySelectorAll('[data-group]').forEach(group=>group.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.value===state[group.dataset.group]))));$('#date-wrap').hidden=true;}
  $('#place').value=location.name;$('#preferences-title').textContent=location.name;
- $('#location-detail').textContent=[location.region,location.timezone,location.latitude.toFixed(4)+', '+location.longitude.toFixed(4)].filter(Boolean).join(' · ');
+ $('#location-detail').textContent=[location.address,location.region,location.timezone].filter(Boolean).join(' · ');
  $('#suggestions').hidden=true;$('#location-message').textContent='Location selected.';
- adjustDate();reveal($('#preferences'));focusHeading($('#preferences-title'));
+ adjustDate();$('#preferences').hidden=false;$('.opening').hidden=true;if(!restore){build({locationChanged:true});focusHeading($('#preferences-title'));}
 }
 function resultButton(location,onChoose){
  const b=el('button',undefined,'search-result');b.type='button';
- b.append(el('strong',location.name+' ↗'),el('small',[location.kind,location.region,location.latitude.toFixed(3)+', '+location.longitude.toFixed(3)].filter(Boolean).join(' · ')));
+ b.append(el('strong',location.name+' ↗'),el('small',[location.address,location.region||location.kind].filter(Boolean).join(' · ')));
  b.onclick=()=>onChoose(location);return b;
 }
 async function runSearch(){
@@ -37,7 +42,7 @@ async function runSearch(){
  const message=$('#location-message'),q=$('#place').value.trim(),button=$('#search-form button');
  $('#suggestions').hidden=true;button.disabled=true;message.textContent='Searching locations…';
  try{
- const results=await searchLocations(q,searchController.signal);if(id!==searchEpoch)return;
+ await areaReady;if(id!==searchEpoch)return;const results=await searchLocations(q,searchController.signal,searchBias);if(id!==searchEpoch)return;
  $('#suggestion-list').replaceChildren(...results.map(l=>resultButton(l,selectLocation)));
  $('#suggestions').hidden=!results.length;
  message.textContent=results.length?'Choose the matching location below.':'No matching places. Try including the city, or enter latitude, longitude.';
@@ -47,48 +52,71 @@ async function runSearch(){
 }
 $('#search-form').onsubmit=e=>{e.preventDefault();runSearch()};
 $('#place').addEventListener('input',()=>{geoEpoch++;$('#locate').disabled=false;searchEpoch++;searchController?.abort();$('#search-form button').disabled=false;$('#suggestions').hidden=true;$('#location-message').textContent=''});
-$('#chicago').onclick=()=>selectLocation({...coordinates(41.8755616,-87.6244212,'Chicago'),region:'Illinois, United States',kind:'City'});
 $('#locate').onclick=()=>{
  if(!navigator.geolocation){$('#location-message').textContent='Device location is unavailable. Search a place instead.';return}
  const id=++geoEpoch;$('#locate').disabled=true;$('#location-message').textContent='Waiting for location permission…';
- navigator.geolocation.getCurrentPosition(pos=>{
+ navigator.geolocation.getCurrentPosition(async pos=>{
  if(id!==geoEpoch)return;$('#locate').disabled=false;
- try{selectLocation(coordinates(pos.coords.latitude,pos.coords.longitude,'Your location'));$('#location-message').textContent='Using your device location. You can change it any time.'}catch{$('#location-message').textContent='Could not read location. Search a place instead.'}
+ try{const exact=coordinates(pos.coords.latitude,pos.coords.longitude,'Your device location');selectLocation(exact);const named=await readableDeviceLocation(exact);if(id+1!==geoEpoch||state.location!==exact)return;Object.assign(exact,named);$('#preferences-title').textContent=named.name;$('#location-detail').textContent=[named.address,named.region,named.timezone].filter(Boolean).join(' · ');$('#place').value=named.name;renderRoute();$('#location-message').textContent='Using your device location. You can change it any time.'}catch{$('#location-message').textContent='Could not read location. Search a place instead.'}
  },()=>{
  if(id!==geoEpoch)return;$('#locate').disabled=false;$('#location-message').textContent='Location permission was declined or unavailable. Search a place instead.';
  },{timeout:10000,maximumAge:300000});
 };
-$('#change-location').onclick=()=>{cancelBuild();$('#preferences').hidden=true;$('#place').focus();$('#place').select();$('#place').scrollIntoView({block:'center'})};
-const descriptions={Morning:'Start with sunrise and the morning golden-hour window.',Afternoon:'Plan a daytime session from 1–3 PM at your destination.',Evening:'Start with the evening golden-hour window.', 'Best Light':'Compare upcoming golden-hour windows, using the forecast when available.'};
+$('#change-location').onclick=()=>{cancelBuild();$('#results').hidden=true;$('#preferences').hidden=true;$('.opening').hidden=false;$('#place').focus();$('#place').select();$('#place').scrollIntoView({block:'center'})};
 document.querySelectorAll('[data-group]').forEach(group=>group.onclick=e=>{
  const b=e.target.closest('button');if(!b)return;
  group.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
- state[group.dataset.group]=b.dataset.value;cancelBuild();
+ state[group.dataset.group]=b.dataset.value;
  $('#date-wrap').hidden=state.day!=='Choose Date';adjustDate();
- if(group.dataset.group==='day'&&state.day==='Choose Date')dateInput.focus();
- $('#time-description').textContent=descriptions[state.time];
+ if(group.dataset.group==='day'&&state.day==='Choose Date')openCalendar();
+ build({restore:true});
 });
-dateInput.onchange=()=>{cancelBuild();adjustDate()};
-const stamp=d=>new Intl.DateTimeFormat('en-US',{timeZone:state.location.timezone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(d);
+let calendarMonth='';
+function openCalendar(){calendarMonth=dateInput.value.slice(0,7);renderCalendar();}
+function renderCalendar(){
+ const box=$('#shoot-calendar');box.replaceChildren();
+ const [year,month]=calendarMonth.split('-').map(Number),first=new Date(Date.UTC(year,month-1,1));
+ const heading=el('div',undefined,'calendar-heading');
+ for(const [label,offset] of [['Previous month',-1],['Next month',1]]){
+ const button=el('button',offset<0?'←':'→','secondary');button.type='button';button.setAttribute('aria-label',label);
+ button.onclick=()=>{const next=new Date(Date.UTC(year,month-1+offset,1));calendarMonth=next.toISOString().slice(0,7);renderCalendar();};
+ if(offset<0)heading.append(button);else{heading.append(el('strong',new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric',timeZone:'UTC'}).format(first)));heading.append(button);}
+ }
+ box.append(heading);const grid=el('div',undefined,'calendar-grid');
+ for(const day of ['Su','Mo','Tu','We','Th','Fr','Sa'])grid.append(el('span',day));
+ for(let i=0;i<first.getUTCDay();i++)grid.append(el('span',''));
+ const total=new Date(Date.UTC(year,month,0)).getUTCDate();
+ for(let day=1;day<=total;day++){
+ const value=calendarMonth+'-'+String(day).padStart(2,'0'),button=el('button',String(day));button.type='button';button.disabled=value<dateInput.min;button.setAttribute('aria-label',value);button.setAttribute('aria-pressed',String(value===dateInput.value));
+ button.onclick=()=>{dateInput.value=value;adjustDate();renderCalendar();build({restore:true});$('#date-wrap').hidden=true;document.querySelector('[data-value="Choose Date"]').focus();};grid.append(button);
+ }
+ box.append(grid);
+}
+dateInput.onchange=()=>{adjustDate();build({restore:true})};
+const stamp=d=>new Intl.DateTimeFormat('en-US',{timeZone:state.location.timezone,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(d);
 const time=d=>localTime(d,state.location.timezone);
 function metric(value,label){const d=el('div');d.append(el('strong',value),el('span',label));return d}
 function showLight(){
  const w=state.window,t=w.times;
- $('#result-meta').textContent=state.location.name+' / '+state.type+' / '+state.date+' / '+state.location.timezone;
- $('#result-title').textContent=w.polar?'A DIFFERENT KIND OF LIGHT.':w.label.toUpperCase()+'.';
- const range=w.polar?'No golden-hour crossing for this date.':time(w.start)+'–'+time(w.end)+' · local time';
- $('#light-title').textContent=range;
- $('#light-copy').textContent=w.polar?'The sun does not cross the usual golden-hour boundaries. Use the time control to inspect its position.':state.time==='Best Light'?'Suggested from upcoming morning and evening golden-hour windows. Where available, forecast cloud, rain and wind help rank them.':'Your selected shooting window, calculated for this location and date.';
- $('#window-note').textContent=w.passed?'These windows have passed for the selected date. Choose Tomorrow or another date to plan ahead.':w.polar?'High-latitude daylight can differ from the familiar sunrise–sunset pattern.':'Start here, then choose the places you want to photograph.';
+ $('#result-meta').textContent=state.location.name+' / '+state.date+' / '+state.location.timezone;
+ $('#result-title').textContent='LIGHT & WEATHER.';
+ $('#light-title').textContent='Your day in light.';
+ $('#light-copy').textContent=w.polar?'Some sun windows are unavailable at this latitude and date. Use the weather time control to inspect conditions.':'Select a sun time below to move the timeline and update the weather. Light windows select their start time.';
+ $('#window-note').textContent='Sun times and forecasts are local to your destination.';
  $('#solar-facts').replaceChildren();
  for(const [label,start,end] of [['Sunrise',t.sunrise],['Sunset',t.sunset],['Morning golden hour',t.sunrise,t.goldenHourEnd],['Evening golden hour',t.goldenHour,t.sunset],['Morning blue hour',t.blueMorningStart,t.blueMorningEnd],['Evening blue hour',t.blueEveningStart,t.blueEveningEnd]]){
- const d=el('div');d.append(el('dt',label),el('dd',end?time(start)+'–'+time(end):time(start)));$('#solar-facts').append(d);
+ const d=el('div'),value=el('dd'),button=el('button',end?time(start)+'–'+time(end):time(start));
+ button.type='button';button.className='text-button';button.disabled=!(start instanceof Date&&Number.isFinite(start.getTime()));button.setAttribute('aria-label','Check weather for '+label);
+ button.onclick=()=>{state.minute=localParts(start,state.location.timezone).minute;$('#shoot-hour').value=String(state.minute);showWeather();};
+ button.dataset.start=start instanceof Date?String(start.getTime()):'';button.dataset.end=end instanceof Date?String(end.getTime()):button.dataset.start;
+ value.append(button);d.append(el('dt',label),value);$('#solar-facts').append(d);
  }
 }
 function showWeather(){
  const instant=localInstant(state.date,state.minute,state.location.timezone),f=forecastAt(state.forecast,instant),solar=solarAt(instant,state.location);
- $('#hour-label').textContent=time(instant)+' · '+state.location.timezone;
- $('#sun-position').textContent='Sun at this time: '+solar.light.status+' · '+(solar.belowHorizon?'below the horizon':solar.light.sunDirection+' · '+Math.round(solar.altitude)+'° elevation');
+ $('#hour-label').textContent=time(instant)+' · '+solar.light.status+' · '+state.location.timezone;
+ updateSession(instant,solar);
+
  $('#weather-metrics').replaceChildren();
  if(!f){
  $('#weather-title').textContent='Forecast unavailable.';
@@ -97,30 +125,46 @@ function showWeather(){
  $('#weather-source').textContent='Open-Meteo · no forecast shown';return;
  }
  $('#weather-title').textContent=weatherName(f.code)+'.';
- const effect=solar.belowHorizon?'Look for artificial light and illuminated streets.':f.cloud===null?'Cloud cover is unavailable; direct sunlight is uncertain.':f.cloud>=80?'Heavy cloud may soften daylight and reduce direct sun.':f.cloud>=30?'Broken cloud may interrupt direct sunlight.':'Limited cloud may allow direct sun where buildings permit.';
+ const effect=solar.belowHorizon?'Sun below the horizon.':f.cloud===null?'Cloud cover is unavailable; direct sunlight is uncertain.':f.cloud>=80?'Heavy cloud may soften daylight and reduce direct sun.':f.cloud>=30?'Broken cloud may interrupt direct sunlight.':'Limited cloud may allow direct sun where buildings permit.';
  $('#weather-copy').textContent=effect+(f.rainChance!==null&&f.rainChance>=50?' Rain is possible; consider a sheltered alternative.':'')+(f.wind!==null&&f.wind>=20?' Wind may be noticeable in exposed locations.':'');
  $('#weather-metrics').append(metric(f.temperature===null?'—':Math.round(f.temperature)+'°F','TEMPERATURE'),metric(f.cloud===null?'—':Math.round(f.cloud)+'%','CLOUD COVER'),metric(f.rainChance===null?'—':Math.round(f.rainChance)+'%','RAIN CHANCE'),metric(f.wind===null?'—':Math.round(f.wind)+' mph','WIND'));
  $('#weather-source').textContent='Open-Meteo forecast · '+stamp(instant)+' · retrieved '+stamp(new Date(state.forecast.retrievedAt));
 }
-async function build({restore=false}={}){
+async function build({restore=false,locationChanged=false}={}){
  if(!state.location)return;adjustDate();
  if(state.day==='Choose Date'&&(!dateInput.value||!dateInput.checkValidity())){dateInput.reportValidity();return}
  if(!validDay(state.date))return;
- cancelBuild();const id=epoch;buildController=new AbortController();$('#build').disabled=true;$('#build').textContent='CHECKING YOUR SHOOT…';$('#build-status').textContent='Calculating light and requesting the forecast…';
- state.forecast=null;
- try{state.forecast=await forecast(state.location,buildController.signal)}catch(error){if(buildController.signal.aborted)return}
- if(id!==epoch)return;
- state.window=shootingWindow(state.location,state.date,state.time,state.forecast);
- state.minute=localParts(state.window.start,state.location.timezone).minute;
- $('#shoot-hour').value=String(state.minute);showLight();showWeather();
- if(!restore||!state.stops.length)state.stops=[state.location];
- state.nearby=[];$('#nearby-list').replaceChildren();$('#add-form').hidden=true;$('#add-results').replaceChildren();$('#places-status').textContent='';$('#save-status').textContent='';
- renderRoute();$('#build-status').textContent='';$('#build').disabled=false;$('#build').innerHTML='BUILD MY SHOOT <span>↗</span>';
- $('#preferences').hidden=true;reveal($('#results'));focusHeading($('#result-title'));
+ cancelBuild({nearby:locationChanged});const id=epoch;const location=state.location;const controller=new AbortController();buildController=controller;
+ if(!restore&&!state.stops.length)state.stops=[location];
+ if(locationChanged){state.nearby=[];state.forecast=null;$('#add-form').hidden=true;$('#add-results').replaceChildren();$('#places-status').textContent='';}
+ state.window=shootingWindow(location,state.date,state.time,state.forecast);
+ state.minute=state.day==='Today'?localParts(new Date(),location.timezone).minute:720;
+ $('#shoot-hour').value=String(state.minute);showLight();showWeather();renderRoute();$('#results').hidden=false;$('#preferences').hidden=false;
+ $('#build-status').textContent='Updating weather… Light and route are ready.';if(!state.forecast){$('#weather-title').textContent='Checking forecast…';$('#weather-copy').textContent='Light calculations are ready while weather loads.';}
+
+ try{const data=await forecast(location,controller.signal);if(id!==epoch)return;state.forecast=data;state.window=shootingWindow(location,state.date,state.time,data);$('#shoot-hour').value=String(state.minute);showLight();showWeather();$('#build-status').textContent='';}
+ catch(error){if(id!==epoch||controller.signal.aborted)return;state.forecast=null;showWeather();$('#build-status').textContent='Weather is unavailable. Light, places and route remain available.';}
 }
-$('#build').onclick=()=>build();
-$('#edit').onclick=()=>{cancelBuild();reveal($('#preferences'));focusHeading($('#preferences-title'))};
-$('#shoot-hour').oninput=()=>{state.minute=Number($('#shoot-hour').value);showWeather()};
+function changeMinute(minute){state.minute=minute;$('#shoot-hour').value=String(minute);showWeather();}
+$('#shoot-hour').oninput=()=>changeMinute(Number($('#shoot-hour').value));
+$('#exact-time').onchange=()=>{const match=/^(\d{2}):(\d{2})$/.exec($('#exact-time').value);if(match&&Number(match[1])<24&&Number(match[2])<60){$('#exact-time').setAttribute('aria-invalid','false');changeMinute(Number(match[1])*60+Number(match[2]));}else{$('#exact-time').setAttribute('aria-invalid','true');}};
+$('#time-hour').onchange=()=>{const minute=Number($('#time-minute').value);changeMinute(Number($('#time-hour').value)*60+Math.floor(minute/15)*15);};
+$('#time-minute').onchange=()=>changeMinute(Number($('#time-hour').value)*60+Number($('#time-minute').value));
+$('#time-now').onclick=()=>{if(!state.location)return;state.day='Today';$('#date-wrap').hidden=true;document.querySelectorAll('[data-group]').forEach(g=>g.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.value==='Today'))));build({restore:true});};
+function updateSession(instant,solar){
+ const clock=String(Math.floor(state.minute/60)).padStart(2,'0')+':'+String(state.minute%60).padStart(2,'0');
+ $('#time-minute').querySelectorAll('[data-exact]').forEach(n=>n.remove());
+ if(state.minute%15){const option=el('option',String(state.minute%60).padStart(2,'0'));option.value=String(state.minute%60);option.setAttribute('data-exact','true');$('#time-minute').append(option);}
+ $('#time-hour').value=String(Math.floor(state.minute/60));$('#time-minute').value=String(state.minute%60);
+ $('#exact-time').value=clock;
+
+ const directions=['North','Northeast','East','Southeast','South','Southwest','West','Northwest'];
+ const phase=solar.light.status==='Nautical twilight'&&solar.altitude>=-8?'Blue hour':solar.light.status;
+ $('#light-title').textContent=phase;
+
+ document.querySelectorAll('#solar-facts button').forEach(b=>{const start=Number(b.dataset.start),end=Number(b.dataset.end);b.setAttribute('aria-pressed',String(!!b.dataset.start&&instant.getTime()>=start&&instant.getTime()<=end));});
+
+}
 $('#refresh-weather').onclick=async()=>{
  if(!state.location)return;const id=++weatherEpoch,location=state.location;
  $('#refresh-weather').disabled=true;$('#weather-source').textContent='Refreshing forecast…';
@@ -144,8 +188,8 @@ function renderRoute(){
  const m=routeMetrics(state.stops);
  $('#route-summary').textContent=state.stops.length+' '+(state.stops.length===1?'stop':'stops')+' · '+(m.estimatedKm/1.609344).toFixed(1)+' mi rough walking estimate · ~'+m.walkMinutes+' min walking + '+m.shootMinutes+' min shooting';
  $('#directions').href=directions(state.stops);
- $('#show-add').disabled=state.stops.length>=5;$('#nearby').disabled=state.stops.length>=5;
- $('#save-status').textContent='';renderCandidates();
+ $('#show-add').disabled=state.stops.length>=5;
+ $('#save-status').textContent='';
 }
 function addStop(location){
  if(state.stops.length>=5){$('#places-status').textContent='Five stops maximum. Remove a stop to add another.';return}
@@ -153,26 +197,11 @@ function addStop(location){
  state.stops.push(location);renderRoute();$('#places-status').textContent=location.name+' added. '+state.stops.length+' stops in your walk.';
  $('#add-form').hidden=true;$('#add-results').replaceChildren();
 }
-function renderCandidates(){
- $('#nearby-list').replaceChildren();
- for(const location of state.nearby){
- const row=el('div',undefined,'candidate'),copy=el('div');copy.append(el('strong',location.name),el('small',location.kind+' · '+(location.distanceKm/1.609344).toFixed(1)+' mi from your selected location'+(location.openingHours?' · Hours listed in map data':'')));
- const existing=state.stops.some(p=>distance(p,location)<.025&&p.name.toLocaleLowerCase()===location.name.toLocaleLowerCase());
- const b=stopButton(existing?'Added ✓':'+ Add','Add '+location.name,()=>addStop(location),existing||state.stops.length>=5);row.append(copy,b);$('#nearby-list').append(row);
- }
-}
-$('#nearby').onclick=async()=>{
- const id=++nearbyEpoch;nearbyController?.abort();nearbyController=new AbortController();const location=state.location,type=state.type;
- $('#nearby').disabled=true;$('#places-status').textContent='Looking for named places within about one mile…';state.nearby=[];renderCandidates();
- try{const places=await nearby(location,type,nearbyController.signal);if(id!==nearbyEpoch||location!==state.location||$('#results').hidden)return;state.nearby=places;renderCandidates();$('#places-status').textContent=places.length?'OpenStreetMap places near your selected location. Add the ones you want to shoot.':'No matching places found nearby. Add a place by name instead.'}
- catch(error){if(id===nearbyEpoch&&error.name!=='AbortError')$('#places-status').textContent='Nearby places are unavailable. Try again, or add a place by name.'}
- finally{if(id===nearbyEpoch)$('#nearby').disabled=state.stops.length>=5}
-};
 $('#show-add').onclick=()=>{$('#add-form').hidden=!$('#add-form').hidden;if(!$('#add-form').hidden)$('#add-place').focus()};
 $('#add-place').oninput=()=>{addEpoch++;addController?.abort();$('#add-form button').disabled=false;$('#add-results').replaceChildren()};
 $('#add-form').onsubmit=async e=>{
  e.preventDefault();const id=++addEpoch;addController?.abort();addController=new AbortController();$('#add-form button').disabled=true;$('#add-results').replaceChildren();$('#add-status').textContent='Searching places…';
- try{const results=await searchLocations($('#add-place').value,addController.signal);if(id!==addEpoch)return;$('#add-results').replaceChildren(...results.map(l=>resultButton(l,addStop)));$('#add-status').textContent=results.length?'Choose a stop. Include the city to narrow your search.':'No matches. Try another name or coordinates.'}
+ try{const results=await searchLocations($('#add-place').value,addController.signal,state.location);if(id!==addEpoch)return;$('#add-results').replaceChildren(...results.map(l=>resultButton(l,addStop)));$('#add-status').textContent=results.length?'Choose a stop. Include the city to narrow your search.':'No matches. Try another name or coordinates.'}
  catch(error){if(id===addEpoch&&error.name!=='AbortError')$('#add-status').textContent=error.message}
  finally{if(id===addEpoch)$('#add-form button').disabled=false}
 };
@@ -185,17 +214,17 @@ $('#clear-saved').onclick=()=>{try{localStorage.removeItem(key);saved=null;$('#r
 $('#restore').onclick=()=>{
  if(!saved)return;
  const restoreDate=saved.date<localDay(saved.location.timezone)?localDay(saved.location.timezone):saved.date;
- state.type=saved.type;state.time=saved.time;state.day='Choose Date';dateInput.min=localDay(saved.location.timezone);dateInput.value=restoreDate;
+ state.type='Explore';state.time=saved.time;state.day='Choose Date';dateInput.min=localDay(saved.location.timezone);dateInput.value=restoreDate;
  selectLocation(saved.location,{restore:true});dateInput.value=restoreDate;state.stops=saved.stops;state.date=restoreDate;
  document.querySelectorAll('[data-group]').forEach(group=>group.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.value===state[group.dataset.group]))));
  $('#date-wrap').hidden=false;
- if(restoreDate!==saved.date){$('#build-status').textContent='Saved shoot loaded. Its date has passed, so the date is now Today. Review it and build your shoot.';}else build({restore:true});
+ build({restore:true,locationChanged:true});if(restoreDate!==saved.date)$('#save-status').textContent='This saved date has passed. Showing Today at your destination; review the date before heading out.';
 };
 let exportURL;
 $('#download').onclick=()=>{
  const w=state.window,m=routeMetrics(state.stops),f=forecastAt(state.forecast,localInstant(state.date,state.minute,state.location.timezone));
- const text=['PHOPOD / BEFORE THE SHOOT',state.location.name,state.date+' / '+state.location.timezone,state.type+' / '+state.time,'',w.label+': '+time(w.start)+'–'+time(w.end),'Sunrise: '+time(w.times.sunrise)+' / Sunset: '+time(w.times.sunset),f?'Forecast at '+time(localInstant(state.date,state.minute,state.location.timezone))+': '+weatherName(f.code)+(f.temperature===null?'':' / '+Math.round(f.temperature)+'°F'):'Forecast unavailable','',...state.stops.map((p,i)=>(i+1)+'. '+p.name+' / '+p.latitude+', '+p.longitude),'','Rough walking estimate: '+(m.estimatedKm/1.609344).toFixed(1)+' mi, '+m.walkMinutes+' min. Straight-line distances with an allowance; actual paths vary.','Walking directions: '+directions(state.stops),'','Sun times are calculated; buildings and terrain can block light. Forecasts can change. Check access and opening hours.','Weather: Open-Meteo. Place data: © OpenStreetMap contributors.','Created with Phopod.'].join('\n');
+ const text=['PHOPOD / BEFORE THE SHOOT',state.location.name,state.date+' / '+state.location.timezone,state.time,'',w.label+': '+time(w.start)+'–'+time(w.end),'Sunrise: '+time(w.times.sunrise)+' / Sunset: '+time(w.times.sunset),f?'Forecast at '+time(localInstant(state.date,state.minute,state.location.timezone))+': '+weatherName(f.code)+(f.temperature===null?'':' / '+Math.round(f.temperature)+'°F'):'Forecast unavailable','',...state.stops.map((p,i)=>(i+1)+'. '+p.name+' / '+p.latitude+', '+p.longitude),'','Rough walking estimate: '+(m.estimatedKm/1.609344).toFixed(1)+' mi, '+m.walkMinutes+' min. Straight-line distances with an allowance; actual paths vary.','Walking directions: '+directions(state.stops),'','Sun times are calculated; buildings and terrain can block light. Forecasts can change. Check access and opening hours.','Weather: Open-Meteo. Place data: © OpenStreetMap contributors.','Created with Phopod.'].join('\n');
  if(exportURL)URL.revokeObjectURL(exportURL);exportURL=URL.createObjectURL(new Blob([text],{type:'text/plain;charset=utf-8'}));
  const a=el('a');a.href=exportURL;a.download='phopod-shoot-'+state.date+'.txt';document.body.append(a);a.click();a.remove();
 };
-window.addEventListener('pagehide',()=>{searchController?.abort();addController?.abort();buildController?.abort();nearbyController?.abort();if(exportURL)URL.revokeObjectURL(exportURL)});
+window.addEventListener('pagehide',()=>{searchController?.abort();addController?.abort();buildController?.abort();if(exportURL)URL.revokeObjectURL(exportURL)});

@@ -9,7 +9,7 @@ export function normalizeLocation(f){
  const p=f?.properties,c=f?.geometry?.coordinates;
  const name=p?.name||[p?.housenumber,p?.street].filter(Boolean).join(' ');
  if(typeof name!=='string'||!name.trim()||name.length>250||f?.geometry?.type!=='Point'||!Array.isArray(c)||!['N','W','R'].includes(p?.osm_type)||!Number.isFinite(p?.osm_id))return null;
- try{return {...coordinates(c[1],c[0],name),id:p.osm_type+p.osm_id,region:[p.city,p.state,p.country].filter(Boolean).join(', '),kind:(p.osm_value||'place').replaceAll('_',' '),sourceUrl:'https://www.openstreetmap.org/'+{N:'node',W:'way',R:'relation'}[p.osm_type]+'/'+p.osm_id};}catch{return null}
+ try{return {...coordinates(c[1],c[0],name),id:p.osm_type+p.osm_id,address:[p.housenumber,p.street].filter(Boolean).join(' '),region:[p.city||p.district||p.locality,p.state,p.country].filter(Boolean).join(', '),kind:(p.osm_value||'place').replaceAll('_',' '),sourceUrl:'https://www.openstreetmap.org/'+{N:'node',W:'way',R:'relation'}[p.osm_type]+'/'+p.osm_id};}catch{return null}
 }
 export function localDay(zone,offset=0,now=new Date()){
  const day=localParts(now,zone).date;
@@ -94,7 +94,7 @@ export function directions(stops){
 export function validSaved(value){
  if(!value||value.version!==1||!validDay(value.date)||!['Street','Architecture','Cityscape','Explore'].includes(value.type)||!['Morning','Afternoon','Evening','Best Light'].includes(value.time)||!Array.isArray(value.stops)||!value.stops.length||value.stops.length>5)return null;
  try{
- const clean=p=>{if(typeof p?.name!=='string'||p.name.length>250)throw Error();const c=coordinates(p.latitude,p.longitude,p.name);return {...c,kind:typeof p.kind==='string'?p.kind.slice(0,80):'Place'}};
+ const clean=p=>{if(typeof p?.name!=='string'||p.name.length>250)throw Error();const c=coordinates(p.latitude,p.longitude,p.name);return {...c,kind:typeof p.kind==='string'?p.kind.slice(0,80):'Place',address:typeof p.address==='string'?p.address.slice(0,250):'',region:typeof p.region==='string'?p.region.slice(0,250):''}};
  return {version:1,date:value.date,type:value.type,time:value.time,location:clean(value.location),stops:value.stops.map(clean)};
  }catch{return null}
 }
