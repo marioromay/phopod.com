@@ -4,6 +4,8 @@ import {readFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 const root=new URL('./',import.meta.url);
 const routes=new Map([
+ ["/brand.css", "brand.css"],
+ ["/brand/phopod-logo.png", "brand/phopod-logo.png"],
  ["/before.css", "before.css"],
  ["/stages.css", "stages.css"],
  ["/before.js", "before.js"],

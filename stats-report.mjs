@@ -74,7 +74,7 @@ export function reportPDF(report,{paper='letter',logo=null}={}){
  const start=length;append(`xref\n0 ${offsets.length}\n0000000000 65535 f \n`);for(const offset of offsets.slice(1))append(`${String(offset).padStart(10,'0')} 00000 n \n`);append(`trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`);return new Blob(chunks,{type:'application/pdf'});
 }
 export async function reportLogo(){
- const image=new Image();image.src='/brand/inspector-focus.png';await image.decode();
+ const image=new Image();image.src='/brand/phopod-logo.png?v=20261017';await image.decode();
  const scale=Math.min(1,600/Math.max(image.naturalWidth,image.naturalHeight)),width=Math.max(1,Math.round(image.naturalWidth*scale)),height=Math.max(1,Math.round(image.naturalHeight*scale));
  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');ctx.fillStyle='#ffffff';ctx.fillRect(0,0,width,height);ctx.drawImage(image,0,0,width,height);
  const blob=await new Promise(r=>canvas.toBlob(r,'image/jpeg',.98));canvas.width=canvas.height=0;if(!blob)throw Error('Could not prepare the report logo.');return {width,height,bytes:new Uint8Array(await blob.arrayBuffer())};

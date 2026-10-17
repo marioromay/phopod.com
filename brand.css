@@ -1,0 +1,15 @@
+/* Approved phopod-logo.png, shown intact at its original aspect ratio. */
+.shell>header .brand-logo{width:58px;height:auto;aspect-ratio:1374/1145;object-fit:contain;filter:none}
+.character img{display:block;width:228px;height:auto;aspect-ratio:1374/1145;object-fit:contain;filter:none}
+.character{padding-block:12px}
+.footer-logo,.processing-mascot img{object-fit:contain;filter:none!important}
+.site-splash{display:none}
+.splash-active .site-splash{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;background:var(--paper);pointer-events:none}
+.site-splash img{width:clamp(180px,30vw,280px);height:auto;object-fit:contain}
+.splash-fly{animation:phopod-arrival-out 3s ease both}
+.splash-fly img{animation:phopod-arrival-bounce 3s ease both}
+@keyframes phopod-arrival-out{0%,70%{opacity:1}100%{opacity:0}}
+@keyframes phopod-arrival-bounce{0%{transform:translateY(24px);opacity:0}20%{transform:translateY(-12px);opacity:1}35%,55%{transform:translateY(0)}70%{transform:translateY(-8px)}100%{transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.splash-active .site-splash{display:none}}
+@media(max-width:1000px) and (min-width:761px){.character img{width:190px}}
+@media(max-width:760px){.shell>header .brand-logo{width:43px;height:auto}.character{padding-block:0}.character img{width:88px;height:auto}}

@@ -6,7 +6,7 @@ export function checkSEO(root){
  const origin='https://phopod.com',canonical=[],walk=dir=>readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()?(ignored.has(e.name)?[]:walk(join(dir,e.name))):[join(dir,e.name)]);
  const fail=s=>{throw Error(s);};
  const decode=s=>s.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#x27;/g,"'");
- const image=readFileSync(join(root,'brand/inspector-focus-social.png'));if(image.readUInt32BE(16)!==1200||image.readUInt32BE(20)!==630)fail('Social PNG must be 1200 × 630');
+ const image=readFileSync(join(root,'brand/phopod-logo.png'));if(image.readUInt32BE(16)!==1374||image.readUInt32BE(20)!==1145)fail('Social PNG must be 1374 × 1145');
  for(const path of walk(root).filter(p=>p.endsWith('/index.html'))){
   const html=readFileSync(path,'utf8'),canonicalMatches=[...html.matchAll(/<link rel="canonical" href="([^"]+)"/g)];
   if(canonicalMatches.length!==1||!canonicalMatches[0][1].startsWith(origin+'/'))fail('Missing/duplicate production canonical: '+path);

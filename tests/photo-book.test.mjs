@@ -20,8 +20,8 @@ test('page turn animates in both directions, reduced motion suppresses it and br
  x.image.onload();x.buttons[2].onclick();x.image.onload();assert.equal(animations.length,2);assert.equal(animations[1].options.duration,480);assert.match(animations[1].frames[0].transform,/translateX\(8%\)/);animations[1].onfinish();assert.equal(ghost.hidden,true);
  x.buttons[0].onclick();assert.ok(animations[0].cancelled);x.image.onload();assert.match(animations[3].frames[0].transform,/translateX\(-8%\)/);globalThis.matchMedia=()=>({matches:true});x.buttons[2].onclick();x.image.onload();assert.equal(animations.length,4);assert.equal(x.root.querySelectorAll('.book-caption')[0].hidden,true);assert.equal(x.image.alt,'Photograph 2');x.buttons[1].onclick();x.image.onerror();assert.equal(x.buttons[1].textContent,'Play');assert.match(x.root.querySelectorAll('.book-status')[0].textContent,/could not be opened/);x.dispose();
 });
-test('offline HTML packages only photo book runtime, transparent theme-aware logo and page-turn default',()=>{
- const html=offlineHTML(photos,{});assert.ok(!html.includes('viewer-gallery'));assert.ok(!html.includes('showModal'));assert.ok(!html.includes('background:white'));assert.match(html,/data-theme=dark\] .offline-brand img\{filter:invert\(1\)/);assert.equal(viewerSettings().transition,'turn');new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
+test('offline HTML packages only photo book runtime, original-color logo and page-turn default',()=>{
+ const html=offlineHTML(photos,{});assert.ok(!html.includes('viewer-gallery'));assert.ok(!html.includes('showModal'));assert.ok(!html.includes('background:white'));assert.match(html,/data-theme=dark\] .offline-brand img\{filter:none/);assert.equal(viewerSettings().transition,'turn');new Function(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
 });
 
 test('playback controls fade while playing and return on interaction or pause',()=>{

@@ -28,7 +28,7 @@ def generate(root,indexable):
   s=re.sub(r'<meta\b[^>]*(?:name="(?:description|author|robots|twitter:[^"]+)"|property="og:[^"]+")[^>]*>','',s)
   s=re.sub(r'<link\b[^>]*rel="canonical"[^>]*>','',s)
   s=re.sub(r'<script\b[^>]*type="application/ld\+json"[^>]*>.*?</script>','',s,flags=re.S)
-  url=ORIGIN+route;image=ORIGIN+'/brand/inspector-focus-social.png?v=phopod-20261015'
+  url=ORIGIN+route;image=ORIGIN+'/brand/phopod-logo.png?v=20261017'
   creator={'@type':'Person','@id':ORIGIN+'/#creator','name':'Mario Romay','url':'https://marioromay.com'}
   site={'@type':'WebSite','@id':ORIGIN+'/#website','name':'Phopod','url':ORIGIN+'/','creator':{'@id':creator['@id']}}
   page={'@type':'WebPage','@id':url+'#page','url':url,'name':title,'description':description,'isPartOf':{'@id':site['@id']},'creator':{'@id':creator['@id']},'inLanguage':'en'}
@@ -39,7 +39,7 @@ def generate(root,indexable):
   else:page['about']={'@id':site['@id']}
   esc=lambda v:html.escape(v,quote=True)
   metas=[f'<title>{esc(title)}</title>',f'<meta name="description" content="{esc(description)}">','<meta name="author" content="Mario Romay">',f'<meta name="robots" content="{"index,follow,max-image-preview:large" if indexable else "noindex,nofollow"}">',f'<link rel="canonical" href="{url}">']
-  values={'og:type':'website','og:site_name':'Phopod','og:title':title,'og:description':description,'og:url':url,'og:image':image,'og:image:width':'1200','og:image:height':'630','og:image:alt':'Phopod photography utilities by Mario Romay, with the black-and-white robot logo','og:locale':'en_US'}
+  values={'og:type':'website','og:site_name':'Phopod','og:title':title,'og:description':description,'og:url':url,'og:image':image,'og:image:width':'1374','og:image:height':'1145','og:image:alt':'Phopod photography utilities by Mario Romay, with the white spherical camera robot with red accents','og:locale':'en_US'}
   metas.extend(f'<meta property="{k}" content="{esc(v)}">' for k,v in values.items())
   metas.extend(f'<meta name="{k}" content="{esc(v)}">' for k,v in {'twitter:card':'summary_large_image','twitter:title':title,'twitter:description':description,'twitter:image':image,'twitter:image:alt':values['og:image:alt']}.items())
   metas.append('<script type="application/ld+json">'+json.dumps({'@context':'https://schema.org','@graph':graph},ensure_ascii=False).replace('<','\\u003c')+'</script>')

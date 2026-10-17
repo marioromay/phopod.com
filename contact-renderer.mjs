@@ -11,7 +11,7 @@ function writeText(target,ctx,text,x,y,vector){
 }
 export async function drawContactPage(target,ordered,index,layout,active,loadImage){
  target.sheetText=[];const text=(...args)=>writeText(target,ctx,...args,layout.pdfText);const scale=layout.renderScale||2;target.width=Math.round(layout.width*scale);target.height=Math.round(layout.height*scale);const ctx=target.getContext('2d',{alpha:false});ctx.scale(scale,scale);ctx.fillStyle='#ffffff';ctx.fillRect(0,0,layout.width,layout.height);
- if(!logos.has(loadImage))logos.set(loadImage,loadImage('/brand/inspector-focus.png').catch(error=>{logos.delete(loadImage);throw error;}));
+ if(!logos.has(loadImage))logos.set(loadImage,loadImage('/brand/phopod-logo.png?v=20261017').catch(error=>{logos.delete(loadImage);throw error;}));
  const logo=await logos.get(loadImage);if(!active())return false;
  ctx.fillStyle='#111111';ctx.fillRect(layout.margin,18,layout.width-2*layout.margin,76);
  const headerLogo=fitImage(logo.naturalWidth||logo.width,logo.naturalHeight||logo.height,54,56);ctx.drawImage(logo,layout.margin+14+(54-headerLogo.width)/2,28+(56-headerLogo.height)/2,headerLogo.width,headerLogo.height);
