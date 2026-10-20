@@ -1,7 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 const elements=new Map(),draws=[];let pause=false,finish;
 function element(){return {value:'',hidden:true,disabled:false,style:{},children:[],classList:{toggle(){},add(){},remove(){}},handlers:{},querySelectorAll(){return this.children;},setAttribute(k,v){this[k]=v;},removeAttribute(k){delete this[k];},replaceChildren(...a){this.children=a;},append(...a){this.children.push(...a);},click(){},addEventListener(k,fn){this.handlers[k]=fn;}};}
-globalThis.document={getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);},createElement(tag){if(tag!=='canvas')return element();return {getContext(){return {fillRect(){},drawImage(...args){draws.push(args.slice(1));}};},toBlob(cb){if(pause)finish=cb;else cb(new Blob(['jpeg'],{type:'image/jpeg'}));}};}};
+globalThis.location={search:""};
+globalThis.document={querySelectorAll(){return [];},getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);},createElement(tag){if(tag!=='canvas')return element();return {getContext(){return {fillRect(){},drawImage(...args){draws.push(args.slice(1));}};},toBlob(cb){if(pause)finish=cb;else cb(new Blob(['jpeg'],{type:'image/jpeg'}));}};}};
 let taskSerial=0;const activeTasks=new Set();globalThis.processingProgress={start(){const id=++taskSerial;activeTasks.add(id);return id;},update(){},finish(id){activeTasks.delete(id);},reset(){activeTasks.clear();},paint:async()=>{}};
 globalThis.Image=class {naturalWidth=6000;naturalHeight=4000;async decode(){}};globalThis.window={addEventListener(){}};let serial=0;globalThis.URL={createObjectURL(){return 'blob:'+ ++serial;},revokeObjectURL(){}};
 const $=id=>document.getElementById(id);$('ratio').value='original';$('zoom').value='1';$('horizontal').value=$('vertical').value='50';$('long-edge').value='2400';$('quality').value='85';await import('../export-app.mjs');
@@ -17,3 +18,5 @@ test('target-size mode supports batches and invalidates downloads on edits',asyn
  $('target-size').value='0';$('target-size').oninput();assert.equal($('export').disabled,true);assert.match($('crop-facts').textContent,/10 KB/);
  $('clear').onclick();assert.equal($('export-mode').value,'standard');
 });
+
+test('Print retains crop pixels and mode switches preserve framing',async()=>{await choose([file('print.jpg')]);$('ratio').value='4:5';$('ratio').onchange();$('zoom').value='2';$('zoom').oninput();$('horizontal').value='80';$('horizontal').oninput();$('mode-print').onclick();assert.equal($('print-ppi').textContent,'200 PPI');draws.length=0;await $('export').onclick();assert.deepEqual(draws[0].slice(-2),[1600,2000]);assert.match($('export-facts').textContent,/200 PPI/);$('mode-digital').onclick();assert.equal($('zoom').value,'2');assert.equal($('horizontal').value,'80');$('mode-print').onclick();assert.equal($('print-ppi').textContent,'200 PPI');});

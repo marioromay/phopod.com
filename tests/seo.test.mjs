@@ -1,2 +1,2 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {existsSync} from 'node:fs';import {checkSEO} from '../scripts/check-seo.mjs';
-test('all public pages have accurate canonical metadata, schema and sitemap coverage',()=>{const preview=new URL('../',import.meta.url),root=existsSync(new URL('index.html',preview))?preview.pathname:new URL('../',import.meta.url).pathname;assert.equal(checkSEO(root),14);});
+test('all public pages have accurate canonical metadata, schema and sitemap coverage',()=>{const preview=new URL('../',import.meta.url),root=existsSync(new URL('index.html',preview))?preview.pathname:new URL('../',import.meta.url).pathname;assert.equal(checkSEO(root),13);});

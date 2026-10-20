@@ -1,18 +1,21 @@
 import {loadPhotograph} from './image-loader.mjs?v=phopod-20261015';
 import {makeZIP,uniqueName} from './zip-engine.mjs?v=phopod-20261015';
-import {cropFrame} from './crop-engine.mjs?v=phopod-20261015';import {resizeDimensions,outputDimensions,exportFilename,encodeImage,encodeToTarget,targetFileBytes} from './resize-engine.mjs?v=phopod-20261015';import {setCurrentFile,connectWorkspace,stage} from './workspace.mjs?v=phopod-20261015';
+import {cropFrame,ratios} from './crop-engine.mjs?v=phopod-20261015';import {resizeDimensions,outputDimensions,exportFilename,encodeImage,encodeToTarget,targetFileBytes} from './resize-engine.mjs?v=phopod-20261015';import {setCurrentFile,connectWorkspace,stage} from './workspace.mjs?v=phopod-20261015';
 const $=id=>document.getElementById(id);let source=null,sourceURL=null,outputURL=null,generation=0,busy=false,drag=null,croppedFile=null;
 let decoder=null;
+let purpose='digital',printUnit='in',paper=[8,10];
+for(const ratio of ['5:4','11:14','14:11'])if(!ratios.some(r=>r[0]===ratio)){ratios.push([ratio,ratio]);const option=document.createElement('option');option.value=ratio;option.textContent=ratio;$('ratio').append(option);}
+
 const outputFormat=()=>['jpeg','png','webp'].includes($('format').value)?$('format').value:'jpeg';
-const outputSize=(w,h)=>outputDimensions(w,h,Number($('long-edge').value),$('preset').value==='original');
+const outputSize=(w,h)=>outputDimensions(w,h,Number($('long-edge').value),purpose==='print'||$('preset').value==='original');
 let collection=[],selectedIndex=-1,stopBatch=false;
-const targetBytes=()=>$('export-mode').value==='target'?targetFileBytes($('target-size').value,$('target-unit').value):null;
+const targetBytes=()=>purpose==='digital'&&$('export-mode').value==='target'?targetFileBytes($('target-size').value,$('target-unit').value):null;
 async function encodeExport(image,dimensions,quality,crop,token){
  const target=targetBytes(),format=outputFormat(),background=$('background').value||'#ffffff';
  if(target!==null)return encodeToTarget(image,dimensions,quality,()=>document.createElement('canvas'),crop,format,background,target,()=>token!==generation);
  return {blob:await encodeImage(image,dimensions,quality,()=>document.createElement('canvas'),crop,format,background),dimensions,quality:format==='png'?null:quality};
 }
-const resultDetail=result=>`${result.dimensions.width.toLocaleString()} × ${result.dimensions.height.toLocaleString()} px · ${result.blob.size.toLocaleString()} bytes${result.quality===null?' · lossless':' · quality '+result.quality}${targetBytes()===null?'':' · under limit'}`;
+const resultDetail=result=> (purpose==='print'?printEstimate(result.dimensions).label+' · ':'')+`${result.dimensions.width.toLocaleString()} × ${result.dimensions.height.toLocaleString()} px · ${result.blob.size.toLocaleString()} bytes${result.quality===null?' · lossless':' · quality '+result.quality}${targetBytes()===null?'':' · under limit'}`;
 
 const defaults=()=>({ratio:'original',zoom:'1',horizontal:'50',vertical:'50'});
 function remember(){if(selectedIndex<0||!collection[selectedIndex]||!source)return;collection[selectedIndex].crop=Object.fromEntries(['ratio','zoom','horizontal','vertical'].map(id=>[id,$(id).value]));}
@@ -21,10 +24,11 @@ async function selectPhoto(index){if(busy)return;remember();selectedIndex=index;
 async function chooseFiles(files){if(busy)return;const next=Array.from(files);if(!next.length)return;if(next.length>100||next.reduce((n,f)=>n+f.size,0)>500*1024*1024){say('Choose up to 100 files and 500 MB total. Existing photographs remain selected.',true);return;}collection=next.map(file=>({file,crop:defaults()}));selectedIndex=-1;await selectPhoto(0);}
 const say=(text,error=false)=>{$('message').textContent=text;$('message').classList.toggle('error',error);};
 function invalidate(){globalThis.processingProgress?.clearReady?.();$('batch-results').replaceChildren();croppedFile=null;$('resize-crop').hidden=true;if(outputURL)URL.revokeObjectURL(outputURL);outputURL=null;$('download').hidden=true;$('download').removeAttribute('href');$('export-facts').textContent='';$('file-comparison').hidden=true;}
-function controls(){for(const id of ['ratio','zoom','long-edge','quality','reset','center','preset','format','background','conversion-only','export-mode','target-size','target-unit'])$(id).disabled=!source||busy;$('export').disabled=busy||(!source&&collection.length<2);$('export').textContent=busy?'Working locally…':collection.length>1?'Create '+outputFormat().toUpperCase()+' batch':'Create '+outputFormat().toUpperCase();for(const id of ['choose','replace','file'])$(id).disabled=busy;for(const button of $('photo-selector').querySelectorAll('button'))button.disabled=busy;$('stop-batch').hidden=!(busy&&collection.length>1);$('stage').style.pointerEvents=busy?'none':'';}
+function controls(){for(const id of ['ratio','zoom','long-edge','quality','reset','center','preset','format','background','conversion-only','export-mode','target-size','target-unit'])$(id).disabled=!source||busy;$('export').disabled=busy||(!source&&collection.length<2);$('export').textContent=busy?'Working locally…':collection.length>1?'Create '+outputFormat().toUpperCase()+' batch':'Create '+outputFormat().toUpperCase();for(const id of ['choose','replace','file'])$(id).disabled=busy;for(const button of document.querySelectorAll('.export-mode-tabs button,#print-presets button'))button.disabled=busy;for(const button of $('photo-selector').querySelectorAll('button'))button.disabled=busy;$('stop-batch').hidden=!(busy&&collection.length>1);$('stage').style.pointerEvents=busy?'none':'';}
 function frame(){return cropFrame(source.image.naturalWidth,source.image.naturalHeight,$('ratio').value,+$('horizontal').value/100,+$('vertical').value/100,Number($('zoom').value));}
 function box(id,x,y,width,height){Object.assign($(id).style,{left:x+'%',top:y+'%',width:Math.max(0,width)+'%',height:Math.max(0,height)+'%'});}
 function render(){
+ renderPrint();
  $('target-setting').hidden=$('export-mode').value!=='target';
  $('quality').disabled=busy||!source||outputFormat()==='png';$('quality-setting').hidden=outputFormat()==='png';$('background-setting').hidden=outputFormat()!=='jpeg';$('long-edge').disabled=busy||!source||$('preset').value==='original';
  $('quality-value').textContent=$('quality').value;$('zoom-value').textContent=Number($('zoom').value)+'×';controls();$('quality').disabled=busy||!source||outputFormat()==='png';$('long-edge').disabled=busy||!source||$('preset').value==='original';if(!source){$('dimension-flow').hidden=true;$('output-dimensions').textContent='—';$('position-controls').hidden=true;return;}
@@ -64,3 +68,23 @@ $('preset').onchange=()=>{if(!['custom','original'].includes($('preset').value))
 $('format').onchange=changed;$('background').oninput=changed;$('conversion-only').onclick=()=>{$('ratio').value='original';$('zoom').value='1';$('horizontal').value=$('vertical').value='50';$('preset').value='original';$('export-mode').value='standard';changed();};
 
 $('export-mode').onchange=changed;$('target-size').oninput=changed;$('target-unit').onchange=()=>{$('target-size').min=$('target-unit').value==='KB'?'10':'0.01';$('target-size').max=$('target-unit').value==='KB'?'50000':'50';changed();};
+
+function printEstimate(dim){
+ const landscape=dim.width>=dim.height,pw=landscape?paper[1]:paper[0],ph=landscape?paper[0]:paper[1];
+ const ppi=Math.max(dim.width/pw,dim.height/ph),iw=dim.width/ppi,ih=dim.height/ppi;
+ const factor=printUnit==='cm'?2.54:1,unit=printUnit==='cm'?'cm':'in';
+ return {label:Math.floor(ppi)+' PPI',ppi,note:Math.abs(iw-pw)<.02&&Math.abs(ih-ph)<.02?'Fills the selected print size.':`Current crop fits within the paper at ${(iw*factor).toFixed(1)} × ${(ih*factor).toFixed(1)} ${unit}, with borders. Tap a size preset to fill it.`};
+}
+function renderPrint(){
+ $('print-settings').hidden=purpose!=='print';$('print-result').hidden=purpose!=='print';$('digital-settings').hidden=purpose==='print';$('digital-file-settings').hidden=purpose==='print';
+ $('mode-help').textContent=purpose==='print'?'Keep all cropped pixels for print. No upscaling or file-size limit.':'Prepare pixels and file size for screens.';
+ for(const mode of ['digital','print'])$('mode-'+mode).setAttribute('aria-pressed',String(purpose===mode));
+ $('print-size-label').textContent=paper.map(n=>Number((n*(printUnit==='cm'?2.54:1)).toFixed(2))).join(' × ')+' '+printUnit;
+ if(!source){$('print-ppi').textContent='—';$('print-fit-note').textContent='Choose a photograph to check print resolution.';return;}
+ const f=frame(),estimate=printEstimate(outputSize(f.width,f.height));$('print-ppi').textContent=estimate.label;$('print-fit-note').textContent=estimate.note+' '+(estimate.ppi>=300?'High detail.':estimate.ppi>=200?'Good detail for many prints.':'Limited detail for close viewing.')+' Sharpness, paper and viewing distance also matter.';
+}
+function drawPrintPresets(){const list=$('print-presets');list.replaceChildren();for(const size of [[4,6],[8,10],[11,14],[16,20],[20,30],[24,36]]){const b=document.createElement('button');b.textContent=size.map(n=>Number((n*(printUnit==='cm'?2.54:1)).toFixed(2))).join(' × ');b.setAttribute('aria-pressed',String(size[0]===paper[0]));b.onclick=()=>{if(busy)return;paper=size;if(source){const f=frame(),landscape=f.width>=f.height;let ratio=size[0]/size[1]===2/3?'2:3':size[0]/size[1]===.8?'4:5':'11:14';if(landscape)ratio=ratio.split(':').reverse().join(':');$('ratio').value=ratio;}drawPrintPresets();changed();};list.append(b);}}
+for(const mode of ['digital','print'])$('mode-'+mode).onclick=()=>{if(busy)return;purpose=mode;changed();};
+for(const unit of ['in','cm'])$('print-'+unit).onclick=()=>{printUnit=unit;for(const u of ['in','cm'])$('print-'+u).setAttribute('aria-pressed',String(u===unit));drawPrintPresets();renderPrint();};
+const sample=document.createElement('button');sample.className='secondary';sample.textContent='Try a sample image';sample.onclick=async()=>{if(busy)return;try{const r=await fetch('/print-sample.png');if(!r.ok)throw Error('Sample unavailable');await chooseFiles([new File([await r.blob()],'Sample-6000x4000.png',{type:'image/png'})]);}catch(e){say(e.message,true);}};$('empty').append(sample);
+if(new URLSearchParams(location.search).get('mode')==='print')purpose='print';drawPrintPresets();render();
